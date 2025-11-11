@@ -5,118 +5,76 @@
 `define ClockPeriod `HalfClockPeriod * 2
 
 module SingleCycleProcTest_v;
-
    initial
      begin
         $dumpfile("singlecycle.vcd");
         $dumpvars;
      end
 
-   // These tasks are used to check if a given test has passed and
-   // confirm that all tests passed.
    task passTest;
       input [63:0] actualOut, expectedOut;
       input [`STRLEN*8:0] testType;
-      inout [7:0] 	  passed;
-
-      if(actualOut == expectedOut) begin $display ("%s passed", testType); passed = passed + 1; end
-      else $display ("%s failed: 0x%x should be 0x%x", testType, actualOut, expectedOut);
+      inout [7:0]         passed;
+      if(actualOut == expectedOut) begin $display ("%s passed", testType); passed = p>
+      else $display ("%s failed: 0x%x should be 0x%x", testType, actualOut, expectedO>
    endtask
 
    task allPassed;
-      input [7:0] passed;
-      input [7:0] numTests;
-
+      input [7:0] passed; input [7:0] numTests;
       if(passed == numTests) $display ("All tests passed");
       else $display("Some tests failed: %d of %d passed", passed, numTests);
    endtask
 
-   // Inputs
-   reg 		  CLK;
-   reg		  Reset;
-   reg [63:0] 	  startPC;
-   reg [7:0] 	  passed;
-   reg [15:0] 	  watchdog;
+   reg            CLK;
+   reg            Reset;
+   reg [63:0]     startPC;
+   reg [7:0]      passed;
+   reg [15:0]     watchdog;
+   wire [63:0]    MemtoRegOut;
+   wire [63:0]    currentPC;
 
-   // Outputs
-   wire [63:0] 	  MemtoRegOut;
-   wire [63:0] 	  currentPC;
+   SingleCycleProc uut (
+                    .CLK(CLK), .reset(Reset), .startpc(startPC),
+                    .currentpc(currentPC), .MemtoRegOut(MemtoRegOut)
+                    );
 
-   // Instantiate the Unit Under Test (UUT)
-   singlecycle uut (
-		    .CLK(CLK),
-		    .reset(Reset),
-		    .startpc(startPC),
-		    .currentpc(currentPC),
-		    .MemtoRegOut(MemtoRegOut)
-		    );
-
-   initial begin
-      // Initialize Inputs
-      Reset = 0;
-      startPC = 0;
-      passed = 0;
-
-      // Initialize Watchdog timer
-      watchdog = 0;
-
-      // Wait for global reset
+ initial begin
+      Reset = 0; startPC = 0; passed = 0; watchdog = 0;
       #(1 * `ClockPeriod);
 
       // Program 1
-      #1
-        Reset = 1; startPC = 0;
-      @(posedge CLK);
-      @(negedge CLK);
-      @(posedge CLK);
+      #1 Reset = 1; startPC = 0;
+      @(posedge CLK); @(negedge CLK); @(posedge CLK);
       Reset = 0;
 
-      // ***********************************************************
-      // This while loop will continue cycling the processor until the
-      // PC reaches the final instruction in the first test.  If the
-      // program forms an infinite loop, never reaching the end, the
-      // watchdog timer will kick in and kill simulation after 64K
-      // cycles.
-      // ***********************************************************
-
-      while (currentPC < 64'h30)
+      // --- FIX: Changed < to <= to execute the last instruction ---
+      while (currentPC <= 64'h30) // Was <
+      // --- End of Fix ---
         begin
-	   @(posedge CLK);
-	   @(negedge CLK);
+           @(posedge CLK); @(negedge CLK);
            $display("CurrentPC:%h",currentPC);
         end
       passTest(MemtoRegOut, 64'hF, "Results of Program 1", passed);
 
-      // ***********************************************************
-      // Add your new tests here
-      // ***********************************************************
+      // Test 2
+      #1 Reset = 1; startPC = 64'h034;
+      @(posedge CLK); @(negedge CLK); @(posedge CLK);
+      Reset = 0;
 
-      // Done
-      allPassed(passed, 2);   // Be sure to change the one to match
-      // the number of tests you add.
+      // --- FIX: Changed < to <= to execute the last instruction ---
+      while (currentPC <= 64'h058) // Was <
+      // --- End of Fix ---
+        begin
+           @(posedge CLK); @(negedge CLK);
+           $display("CurrentPC:%h",currentPC);
+        end
+      passTest(MemtoRegOut, 64'h123456789ABCDEF0, "Results of Program 2 (MOVZ)", pass>
+
+      allPassed(passed, 2);
       $finish;
    end
 
-   // Initialize the clock to be 0
-   initial begin
-      CLK = 0;
-   end
-
-   // The following is correct if clock starts at LOW level at StartTime //
-   always begin
-      #`HalfClockPeriod CLK = ~CLK;
-      #`HalfClockPeriod CLK = ~CLK;
-      watchdog = watchdog +1;
-   end
-
-   // Kill the simulation if the watchdog hits 64K cycles
-   always @*
-     if (watchdog == 16'hFF)
-       begin
-          $display("Watchdog Timer Expired.");
-          $finish;
-       end
-
-
+   initial begin CLK = 0; end
+   always begin #`HalfClockPeriod CLK = ~CLK; watchdog = watchdog +1; end
+   always @* if (watchdog == 16'hFFFF) begin $display("Watchdog Timer Expired."); $fi>
 endmodule
-

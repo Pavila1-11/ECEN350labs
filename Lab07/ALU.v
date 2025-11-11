@@ -5,31 +5,28 @@
 `define PassB 4'b0111
 
 module ALU(
-    output reg [63:0] BusW,      // The 64-bit result of the operation
-    input      [63:0] BusA,      // First 64-bit operand
-    input      [63:0] BusB,      // Second 64-bit operand
-    input      [3:0]  ALUCtrl,   // 4-bit control signal for the operation
-    output            Zero       // 1-bit flag, high when BusW is zero
+    output reg [63:0] BusW,
+    input      [63:0] BusA,
+    input      [63:0] BusB,
+    input      [3:0]  ALUCtrl,
+    output            Zero
 );
 
-    // This combinational block executes whenever any input (BusA, BusB, or ALUCtrl) changes.
-    // We use always @(*) for combinational logic to ensure no unintended latches.
     always @(*) begin
-        // The case statement selects which operation to perform based on ALUCtrl.
         case (ALUCtrl)
-            `AND:   BusW = BusA & BusB; // Bitwise AND
-            `OR:    BusW = BusA | BusB; // Bitwise OR
-            `ADD:   BusW = BusA + BusB; // 64-bit Addition
-            `SUB:   BusW = BusA - BusB; // 64-bit Subtraction
-            `PassB: BusW = BusB;        // Pass BusB directly to the output
+            `AND:   BusW = BusA & BusB;
+            `OR:    BusW = BusA | BusB;
+            `ADD:   BusW = BusA + BusB;
+            `SUB:   BusW = BusA - BusB; // This is 0110
+            `PassB: BusW = BusB;
 
-            // Default case assigns a known value (0) to prevent latches
+            // --- FIX: Handle SUB opcode (0011) from control unit ---
+            4'b0011: BusW = BusA - BusB;
+            // --- End of Fix ---
+
             default: BusW = 64'b0;
         endcase
     end
 
-    // Continuous assignment to the Zero flag.
-    // 'Zero' is set to 1 if all 64 bits of BusW are 0.
     assign Zero = (BusW == 64'b0);
-
 endmodule
